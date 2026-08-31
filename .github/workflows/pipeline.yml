@@ -1,0 +1,66 @@
+name: Pipeline CI - Assistant Bancaire
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verification-structure:
+    name: Verification structure du projet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v3
+
+      - name: Verifier presence des fichiers essentiels
+        run: |
+          echo "Verification des fichiers du projet..."
+          test -f Modelfile-texte && echo "OK Modelfile-texte present" || (echo "ERREUR Modelfile-texte manquant" && exit 1)
+          test -f Modelfile-image && echo "OK Modelfile-image present" || (echo "ERREUR Modelfile-image manquant" && exit 1)
+          test -f test_texte.py && echo "OK test_texte.py present" || (echo "ERREUR test_texte.py manquant" && exit 1)
+          test -f test_image.py && echo "OK test_image.py present" || (echo "ERREUR test_image.py manquant" && exit 1)
+
+  verification-python:
+    name: Verification syntaxe Python
+    runs-on: ubuntu-latest
+    needs: verification-structure
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v3
+
+      - name: Installer Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Installer les dependances
+        run: pip install requests
+
+      - name: Verifier syntaxe test_texte.py
+        run: python -m py_compile test_texte.py
+
+      - name: Verifier syntaxe test_image.py
+        run: python -m py_compile test_image.py
+
+  verification-regles-securite:
+    name: Verification regles de securite dans Modelfiles
+    runs-on: ubuntu-latest
+    needs: verification-structure
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v3
+
+      - name: Verifier presence regle refus hors-sujet
+        run: |
+          grep -q "Je ne peux répondre qu'aux questions bancaires" Modelfile-texte && echo "OK regle refus francais presente" || (echo "ERREUR regle refus francais manquante" && exit 1)
+          grep -q "I can only answer banking-related questions" Modelfile-texte && echo "OK regle refus anglais presente" || (echo "ERREUR regle refus anglais manquante" && exit 1)
+
+      - name: Verifier presence regle anti-injection
+        run: |
+          grep -q "RÈGLE ANTI-INJECTION" Modelfile-texte && echo "OK regle anti-injection presente" || (echo "ERREUR regle anti-injection manquante" && exit 1)
+
+      - name: Verifier presence regle multilingue
+        run: |
+          grep -q "langue détectée" Modelfile-texte && echo "OK regle multilingue presente" || (echo "ERREUR regle multilingue manquante" && exit 1)
